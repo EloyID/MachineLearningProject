@@ -1,0 +1,124 @@
+---
+title: "MachineLearningProject"
+output: html_document
+date: "2023-04-06"
+---
+
+Prediction of barbell lifts using data from band devices
+
+===========================
+
+## Synopsis
+
+In this project we aim to use the data from arm devices to detect if the person is performing correctly barbell lifts. We have used a labelled training and test data set. We have cleaned the data, created a validation set, and tested different models with a k-fold cross-validation. Finally, we have applied our best model to the test set. We keep a random forest model as it has a good accuracy.
+
+## Load data
+
+First we download and read the training data. It is composed of 19622 observations of 160 variables. Most of them are mesures of the device, but we have also some including the name of the user, the date and, of course, the diagnosis (classe)
+
+```{r, echo=FALSE}
+library(caret)
+set.seed(1234)
+
+
+trainingDestFile = "./pml-training.csv"
+trainingFileUrl = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+
+if (!file.exists(trainingDestFile)) {
+  download.file(trainingFileUrl, destfile = trainingDestFile)
+}
+
+rawData = read.csv(trainingDestFile)
+```
+
+## Preprocessing
+
+First we are deleting the columns corresponding to the index, user and time stamp, and other columns which are not related to the device measures. Then we will delete the columns which are zero or near zero. 
+
+```{r}
+
+cleanedColumns = rawData[,-c(1:7)]
+
+nzvColumns <- nearZeroVar(cleanedColumns)
+cleanedColumns <- cleanedColumns[,-nzvColumns]
+
+
+too_many_na_cols <- which(sapply(cleanedColumns, function(x)mean(is.na(x)))>0.97)
+cleanedColumns <- cleanedColumns[,-too_many_na_cols]
+
+cleanedColumns$classe <- factor(cleanedColumns$classe)
+```
+
+We have applied the Saphire normality test to the numeric columns we have and we see most of them pass the test, so we are going to apply PCA to explain 95% of variability, what reduces our number of parameters from 94 to 34.
+
+```{r}
+notnormalvariables <- sapply(cleanedColumns[,-ncol(cleanedColumns)], function(x)shapiro.test(sample(x,5000))[[2]]>0.05)
+mean(notnormalvariables==TRUE)
+```
+
+## Training and validation set
+
+We split the training set into two separated data frames, training and validation, since we have a dataset big enough.
+
+```{r}
+inTrain <- createDataPartition(y=cleanedColumns$classe,
+                              p=0.75, list=FALSE)
+validation <- cleanedColumns[-inTrain,]
+training <- cleanedColumns[inTrain,]
+dim(training); dim(validation)
+```
+
+
+## Cross validation method
+
+We have choose to apply a k-fold cross validation since we have a large data set, we will use 5 folds, to avoid a large time of running
+
+```{r}
+trControl <- trainControl(method = "cv", number = 5)
+```
+
+## Model testing
+
+In this part we build different models and test against the validation set until we find a good with an accuracy>0.95
+
+### Decision tree
+
+First, we try the rpart method or decision tree. Nevertheless, the obtained accuracy is too low.
+
+```{r}
+rpartfit <- train(classe ~ ., data = training, method="rpart", trControl=trControl)
+accuracy <- confusionMatrix(validation$classe, predict(rpartfit, newdata=validation))$overall[[1]]
+accuracy
+```
+
+### Random forest
+
+We have tried also the random forest method which seems to do a great job, so we are gonna keep it.
+
+```{r}
+rffit <- train(classe ~ ., data = training, method="rf", ntree= 5, trControl=trControl)
+accuracy <- confusionMatrix(validation$classe, predict(rffit, newdata=validation))$overall[[1]]
+accuracy
+```
+
+## Expected out of sample error
+
+The expected out of sample error is `r (1-accuracy)*100`%
+
+## Apply to the test set
+
+```{r, echo=FALSE}
+testingDestFile = "./pml-testing.csv"
+testingFileUrl = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+if (!file.exists(testingDestFile)) {
+  download.file(testingFileUrl, destfile = testingDestFile)
+}
+
+rawTestData = read.csv(testingDestFile)
+predict(rffit, rawTestData)
+```
+
+## Conclusion
+
+We can conclude that a random forest is the best way to predict how they do the exercise. We have cleaned the low quality data fsrom the data set and after also trying the decision tree, random forest have been a good fit, using a validation data set as last decision element.
