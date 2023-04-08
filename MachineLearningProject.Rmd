@@ -1,12 +1,8 @@
 ---
-title: "MachineLearningProject"
+title: "Prediction of barbell lifts using data from band devices"
 output: html_document
 date: "2023-04-06"
 ---
-
-Prediction of barbell lifts using data from band devices
-
-===========================
 
 ## Synopsis
 

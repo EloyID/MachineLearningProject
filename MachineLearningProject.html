@@ -12,7 +12,7 @@
 
 <meta name="date" content="2023-04-06" />
 
-<title>MachineLearningProject</title>
+<title>Prediction of barbell lifts using data from band devices</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -349,21 +349,21 @@ display: none;
 
 
 
-<h1 class="title toc-ignore">MachineLearningProject</h1>
+<h1 class="title toc-ignore">Prediction of barbell lifts using data from
+band devices</h1>
 <h4 class="date">2023-04-06</h4>
 
 </div>
 
 
-<p>Prediction of barbell lifts using data from band devices</p>
-<p>===========================</p>
 <div id="synopsis" class="section level2">
 <h2>Synopsis</h2>
 <p>In this project we aim to use the data from arm devices to detect if
 the person is performing correctly barbell lifts. We have used a
 labelled training and test data set. We have cleaned the data, created a
-validation set, scaled the data and used PCA, and tested different
-models. Finally we have applied our best model to the test set.</p>
+validation set, and tested different models with a k-fold
+cross-validation. Finally, we have applied our best model to the test
+set. We keep a random forest model as it has a good accuracy.</p>
 </div>
 <div id="load-data" class="section level2">
 <h2>Load data</h2>
@@ -374,8 +374,8 @@ course, the diagnosis (classe)</p>
 <pre><code>## Loading required package: ggplot2</code></pre>
 <pre><code>## Loading required package: lattice</code></pre>
 </div>
-<div id="cleaning" class="section level2">
-<h2>Cleaning</h2>
+<div id="preprocessing" class="section level2">
+<h2>Preprocessing</h2>
 <p>First we are deleting the columns corresponding to the index, user
 and time stamp, and other columns which are not related to the device
 measures. Then we will delete the columns which are zero or near
@@ -390,6 +390,13 @@ too_many_na_cols &lt;- which(sapply(cleanedColumns, function(x)mean(is.na(x)))&g
 cleanedColumns &lt;- cleanedColumns[,-too_many_na_cols]
 
 cleanedColumns$classe &lt;- factor(cleanedColumns$classe)</code></pre>
+<p>We have applied the Saphire normality test to the numeric columns we
+have and we see most of them pass the test, so we are going to apply PCA
+to explain 95% of variability, what reduces our number of parameters
+from 94 to 34.</p>
+<pre class="r"><code>notnormalvariables &lt;- sapply(cleanedColumns[,-ncol(cleanedColumns)], function(x)shapiro.test(sample(x,5000))[[2]]&gt;0.05)
+mean(notnormalvariables==TRUE)</code></pre>
+<pre><code>## [1] 0</code></pre>
 </div>
 <div id="training-and-validation-set" class="section level2">
 <h2>Training and validation set</h2>
@@ -403,39 +410,52 @@ dim(training); dim(validation)</code></pre>
 <pre><code>## [1] 14718    53</code></pre>
 <pre><code>## [1] 4904   53</code></pre>
 </div>
-<div id="preprocessing" class="section level2">
-<h2>Preprocessing</h2>
-<p>We have applied the Saphire normality test to the numeric columns we
-have and we see most of them pass the test, so we are going to apply PCA
-to explain 95% of variability, what reduces our number of parameters
-from 94 to 34.</p>
-<pre class="r"><code>notnormalvariables &lt;- sapply(training[,-ncol(training)], function(x)shapiro.test(sample(x,5000))[[2]]&gt;0.05)
-mean(notnormalvariables==TRUE)</code></pre>
-<pre><code>## [1] 0</code></pre>
-</div>
 <div id="cross-validation-method" class="section level2">
 <h2>Cross validation method</h2>
 <p>We have choose to apply a k-fold cross validation since we have a
 large data set, we will use 5 folds, to avoid a large time of
 running</p>
-<pre class="r"><code>trControl &lt;- trainControl(method = &quot;cv&quot;, number = 3)</code></pre>
+<pre class="r"><code>trControl &lt;- trainControl(method = &quot;cv&quot;, number = 5)</code></pre>
 </div>
 <div id="model-testing" class="section level2">
 <h2>Model testing</h2>
 <p>In this part we build different models and test against the
-validation set</p>
+validation set until we find a good with an accuracy&gt;0.95</p>
 <div id="decision-tree" class="section level3">
 <h3>Decision tree</h3>
+<p>First, we try the rpart method or decision tree. Nevertheless, the
+obtained accuracy is too low.</p>
 <pre class="r"><code>rpartfit &lt;- train(classe ~ ., data = training, method=&quot;rpart&quot;, trControl=trControl)
-confusionMatrix(validation$classe, predict(rpartfit, newdata=validation))$overall[[1]]</code></pre>
-<pre><code>## [1] 0.4944943</code></pre>
+accuracy &lt;- confusionMatrix(validation$classe, predict(rpartfit, newdata=validation))$overall[[1]]
+accuracy</code></pre>
+<pre><code>## [1] 0.4969413</code></pre>
 </div>
 <div id="random-forest" class="section level3">
 <h3>Random forest</h3>
+<p>We have tried also the random forest method which seems to do a great
+job, so we are gonna keep it.</p>
 <pre class="r"><code>rffit &lt;- train(classe ~ ., data = training, method=&quot;rf&quot;, ntree= 5, trControl=trControl)
-confusionMatrix(validation$classe, predict(rffit, newdata=validation))$overall[[1]]</code></pre>
-<pre><code>## [1] 0.983279</code></pre>
+accuracy &lt;- confusionMatrix(validation$classe, predict(rffit, newdata=validation))$overall[[1]]
+accuracy</code></pre>
+<pre><code>## [1] 0.9845024</code></pre>
 </div>
+</div>
+<div id="expected-out-of-sample-error" class="section level2">
+<h2>Expected out of sample error</h2>
+<p>The expected out of sample error is 1.5497553%</p>
+</div>
+<div id="apply-to-the-test-set" class="section level2">
+<h2>Apply to the test set</h2>
+<pre><code>##  [1] B A B A A E D B A A B C B A E E A B A B
+## Levels: A B C D E</code></pre>
+</div>
+<div id="conclusion" class="section level2">
+<h2>Conclusion</h2>
+<p>We can conclude that a random forest is the best way to predict how
+they do the exercise. We have cleaned the low quality data fsrom the
+data set and after also trying the decision tree, random forest have
+been a good fit, using a validation data set as last decision
+element.</p>
 </div>
 
 
